@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "Test OPTIONS CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Test search videos",
+      "method": "GET",
+      "path": "/?q=react+tutorial&maxResults=5",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "videos": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test default search",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "videos": "array"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

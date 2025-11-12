@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -37,6 +37,8 @@ const mockVideos: Video[] = [
 
 const categories = ['Все', 'Технологии', 'Путешествия', 'Еда', 'Спорт', 'Образование', 'Авто', 'Релакс'];
 
+const YOUTUBE_API_URL = 'https://functions.poehali.dev/cd2d0fc3-25dc-4a8e-a2aa-74d23bf98541';
+
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Все');
@@ -46,9 +48,51 @@ export default function Index() {
     { id: '2', name: 'Смотреть позже', videos: [] }
   ]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [videos, setVideos] = useState<Video[]>(mockVideos);
+  const [loading, setLoading] = useState(false);
+  const [useYouTube, setUseYouTube] = useState(false);
   const { toast } = useToast();
 
-  const filteredVideos = mockVideos.filter(video => {
+  useEffect(() => {
+    if (useYouTube && searchQuery) {
+      const timer = setTimeout(() => {
+        fetchYouTubeVideos(searchQuery);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, useYouTube]);
+
+  const fetchYouTubeVideos = async (query: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${YOUTUBE_API_URL}?q=${encodeURIComponent(query)}&maxResults=20`);
+      const data = await response.json();
+      
+      if (data.videos && Array.isArray(data.videos)) {
+        const youtubeVideos: Video[] = data.videos.map((v: any) => ({
+          id: v.id,
+          title: v.title,
+          channel: v.channel,
+          views: v.views,
+          duration: v.duration,
+          thumbnail: v.thumbnail,
+          category: selectedCategory !== 'Все' ? selectedCategory : 'Видео'
+        }));
+        setVideos(youtubeVideos);
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка загрузки',
+        description: 'Используются демо-видео',
+        duration: 3000,
+      });
+      setVideos(mockVideos);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredVideos = videos.filter(video => {
     const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          video.channel.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'Все' || video.category === selectedCategory;
@@ -169,13 +213,30 @@ export default function Index() {
               <div className="relative">
                 <Icon name="Search" size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Поиск видео..."
+                  placeholder={useYouTube ? "Поиск на YouTube..." : "Поиск видео..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-muted/50 border-border/50 focus:border-primary"
                 />
+                {loading && (
+                  <Icon name="Loader2" size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-primary animate-spin" />
+                )}
               </div>
             </div>
+
+            <Button
+              variant={useYouTube ? 'default' : 'outline'}
+              onClick={() => {
+                setUseYouTube(!useYouTube);
+                if (!useYouTube) {
+                  setVideos(mockVideos);
+                }
+              }}
+              className={useYouTube ? 'gradient-accent border-0' : ''}
+            >
+              <Icon name="Youtube" size={20} className="mr-2" />
+              YouTube
+            </Button>
 
             <Dialog>
               <DialogTrigger asChild>
@@ -249,7 +310,7 @@ export default function Index() {
           <TabsContent value="popular" className="space-y-6">
             <h2 className="text-3xl font-bold">Популярное сегодня</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[...mockVideos].sort((a, b) => parseFloat(b.views) - parseFloat(a.views)).map(video => (
+              {[...videos].sort((a, b) => parseFloat(b.views) - parseFloat(a.views)).map(video => (
                 <VideoCard key={video.id} video={video} />
               ))}
             </div>
@@ -264,7 +325,7 @@ export default function Index() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {mockVideos.filter(v => favorites.includes(v.id)).map(video => (
+                {videos.filter(v => favorites.includes(v.id)).map(video => (
                   <VideoCard key={video.id} video={video} />
                 ))}
               </div>
@@ -290,7 +351,7 @@ export default function Index() {
                   {playlist.videos.length > 0 && (
                     <div className="mt-4 space-y-2">
                       {playlist.videos.slice(0, 3).map(videoId => {
-                        const video = mockVideos.find(v => v.id === videoId);
+                        const video = videos.find(v => v.id === videoId);
                         return video ? (
                           <div key={videoId} className="text-sm text-muted-foreground flex items-center gap-2">
                             <Icon name="Play" size={14} />
